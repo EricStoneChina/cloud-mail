@@ -123,19 +123,30 @@ jobs:
           EOF
           fi
 
-          sed -i "s|\${NAME}|${NAME}|g" "$CONFIG_FILE"
-          sed -i "s|\${CUSTOM_DOMAIN}|${CUSTOM_DOMAIN}|g" "$CONFIG_FILE"
-          sed -i "s|\"\${DOMAIN}\"|${DOMAIN}|g" "$CONFIG_FILE"
-          sed -i "s|\${ADMIN}|${ADMIN}|g" "$CONFIG_FILE"
-          sed -i "s|\${JWT_SECRET}|${JWT_SECRET}|g" "$CONFIG_FILE"
-          sed -i "s|\${R2_BUCKET_NAME}|${R2_BUCKET_NAME}|g" "$CONFIG_FILE"
-          sed -i "s|\${PROJECT_LINK}|${PROJECT_LINK}|g" "$CONFIG_FILE"
-          sed -i "s|\${ANALYSIS_CACHE}|${ANALYSIS_CACHE}|g" "$CONFIG_FILE"
-          sed -i "s|\${AI_MODEL}|${AI_MODEL}|g" "$CONFIG_FILE"
-          sed -i "s|\${LINUXDO_CLIENT_ID}|${LINUXDO_CLIENT_ID}|g" "$CONFIG_FILE"
-          sed -i "s|\${LINUXDO_CLIENT_SECRET}|${LINUXDO_CLIENT_SECRET}|g" "$CONFIG_FILE"
-          sed -i "s|\${LINUXDO_CALLBACK_URL}|${LINUXDO_CALLBACK_URL}|g" "$CONFIG_FILE"
-          sed -i "s|\${LINUXDO_SWITCH}|${LINUXDO_SWITCH}|g" "$CONFIG_FILE"
+          # 用 Python 安全替换，避免 sed 遇到 JSON 数组中的特殊字符出错
+          python3 -c "
+import os, json
+
+with open('$CONFIG_FILE', 'r') as f:
+    content = f.read()
+
+content = content.replace('\${NAME}', os.environ.get('NAME', 'cloud-mail'))
+content = content.replace('\${CUSTOM_DOMAIN}', os.environ.get('CUSTOM_DOMAIN', ''))
+content = content.replace('\"\${DOMAIN}\"', json.dumps(os.environ.get('DOMAIN', '[]')))
+content = content.replace('\${ADMIN}', os.environ.get('ADMIN', ''))
+content = content.replace('\${JWT_SECRET}', os.environ.get('JWT_SECRET', ''))
+content = content.replace('\${R2_BUCKET_NAME}', os.environ.get('R2_BUCKET_NAME', ''))
+content = content.replace('\${PROJECT_LINK}', os.environ.get('PROJECT_LINK', ''))
+content = content.replace('\${ANALYSIS_CACHE}', os.environ.get('ANALYSIS_CACHE', 'false'))
+content = content.replace('\${AI_MODEL}', os.environ.get('AI_MODEL', ''))
+content = content.replace('\${LINUXDO_CLIENT_ID}', os.environ.get('LINUXDO_CLIENT_ID', ''))
+content = content.replace('\${LINUXDO_CLIENT_SECRET}', os.environ.get('LINUXDO_CLIENT_SECRET', ''))
+content = content.replace('\${LINUXDO_CALLBACK_URL}', os.environ.get('LINUXDO_CALLBACK_URL', ''))
+content = content.replace('\${LINUXDO_SWITCH}', os.environ.get('LINUXDO_SWITCH', ''))
+
+with open('$CONFIG_FILE', 'w') as f:
+    f.write(content)
+"
           
           echo "✅ Environment setup completed."
 
@@ -253,14 +264,18 @@ jobs:
             exit 1
           fi
           
+          echo "🌐 Initializing at: $WORKER_URL/api/init/***"
           HTTP_CODE=$(curl -sL -w "%{http_code}" -o response.txt "$WORKER_URL/api/init/${JWT_SECRET}")
           RESPONSE_BODY=$(cat response.txt)
 
           if [ "$RESPONSE_BODY" = "success" ]; then
             echo "✅ Setup completed."
           else
-            echo "❌ Failed. HTTP: $HTTP_CODE, Response: $RESPONSE_BODY"
-            exit 1
+            echo "⚠️  Auto-init blocked (HTTP $HTTP_CODE). This is usually Cloudflare Bot Fight Mode."
+            echo "   Please manually open this URL in your browser to complete initialization:"
+            echo "   👉 $WORKER_URL/api/init/***"
+            echo ""
+            echo "   (The deployment itself was successful!)"
           fi
 
       - name: 🗑️ 删除运行记录 / Delete workflow runs

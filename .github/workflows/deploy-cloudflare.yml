@@ -130,9 +130,13 @@ jobs:
           with open('wrangler-action.toml', 'r') as f:
               content = f.read()
           
+          domain = os.environ['DOMAIN']
+          if not isinstance(json.loads(domain), list):
+              raise ValueError('DOMAIN must be a JSON array')
+
           content = content.replace('${NAME}', os.environ.get('NAME', 'cloud-mail'))
           content = content.replace('${CUSTOM_DOMAIN}', os.environ.get('CUSTOM_DOMAIN', ''))
-          content = content.replace('${DOMAIN}', json.dumps(os.environ['DOMAIN']))
+          content = content.replace('"${DOMAIN}"', domain)
           content = content.replace('${ADMIN}', os.environ['ADMIN'])
           content = content.replace('${JWT_SECRET}', os.environ['JWT_SECRET'])
           content = content.replace('${R2_BUCKET_NAME}', os.environ.get('R2_BUCKET_NAME', ''))
